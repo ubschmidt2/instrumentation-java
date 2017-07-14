@@ -1,5 +1,5 @@
 /*
- * Copyright 2016, Google Inc.
+ * Copyright 2017, Google Inc.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -26,7 +26,9 @@ public abstract class Measure {
   /**
    * Applies the given match function to the underlying data type.
    */
-  public abstract <T> T match(Function<DoubleMeasure, T> p0, Function<LongMeasure, T> p1);
+  public abstract <T> T match(
+      Function<? super MeasureDouble, T> p0,
+      Function<? super MeasureLong, T> p1);
 
   /**
    * Name of measure, as a {@code String}.
@@ -41,13 +43,14 @@ public abstract class Measure {
   /**
    * The units in which {@link Measure} values are measured.
    *
-   * <p>The grammar for a unit is as follows:
-   *     Expression = Component { "." Component } { "/" Component } ;
-   *     Component = [ PREFIX ] UNIT [ Annotation ] | Annotation | "1" ;
-   *     Annotation = "{" NAME "}" ;
+   * <p>The suggested grammar for a unit is as follows:
+   * Expression = Component { "." Component } { "/" Component } ;
+   * Component = [ PREFIX ] UNIT [ Annotation ] | Annotation | "1" ;
+   * Annotation = "{" NAME "}" ;
    * For example, string “MBy{transmitted}/ms” stands for megabytes per milliseconds, and the
    * annotation transmitted inside {} is just a comment of the unit.
    */
+  // TODO(songya): determine whether we want to check the grammar on string unit.
   public abstract String getUnit();
 
   // Prevents this class from being subclassed anywhere else.
@@ -56,22 +59,22 @@ public abstract class Measure {
 
   @Immutable
   @AutoValue
-  public abstract static class DoubleMeasure extends Measure {
+  public abstract static class MeasureDouble extends Measure {
 
-    DoubleMeasure() {
+    MeasureDouble() {
     }
 
     /**
-     * Constructs a new {@link DoubleMeasure}.
+     * Constructs a new {@link MeasureDouble}.
      */
-    public static DoubleMeasure create(String name, String description, String unit) {
+    public static MeasureDouble create(String name, String description, String unit) {
       // TODO(dpo): ensure that measure names are unique, and consider if there should be any
       // restricitons on name (e.g. size, characters).
-      return new AutoValue_Measure_DoubleMeasure(name, description, unit);
+      return new AutoValue_Measure_MeasureDouble(name, description, unit);
     }
 
     @Override
-    public <T> T match(Function<DoubleMeasure, T> p0, Function<LongMeasure, T> p1) {
+    public <T> T match(Function<? super MeasureDouble, T> p0, Function<? super MeasureLong, T> p1) {
       return p0.apply(this);
     }
 
@@ -87,23 +90,22 @@ public abstract class Measure {
 
   @Immutable
   @AutoValue
-  // TODO: determine whether we want to support LongMeasure in V0.1
-  public abstract static class LongMeasure extends Measure {
+  public abstract static class MeasureLong extends Measure {
 
-    LongMeasure() {
+    MeasureLong() {
     }
 
     /**
-     * Constructs a new {@link LongMeasure}.
+     * Constructs a new {@link MeasureLong}.
      */
-    public static LongMeasure create(String name, String description, String unit) {
+    public static MeasureLong create(String name, String description, String unit) {
       // TODO(dpo): ensure that measure names are unique, and consider if there should be any
       // restricitons on name (e.g. size, characters).
-      return new AutoValue_Measure_LongMeasure(name, description, unit);
+      return new AutoValue_Measure_MeasureLong(name, description, unit);
     }
 
     @Override
-    public <T> T match(Function<DoubleMeasure, T> p0, Function<LongMeasure, T> p1) {
+    public <T> T match(Function<? super MeasureDouble, T> p0, Function<? super MeasureLong, T> p1) {
       return p1.apply(this);
     }
 

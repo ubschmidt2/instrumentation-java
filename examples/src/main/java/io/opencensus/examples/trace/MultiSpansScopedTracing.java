@@ -13,11 +13,11 @@
 
 package io.opencensus.examples.trace;
 
-import io.opencensus.common.NonThrowingCloseable;
+import io.opencensus.common.Scope;
 import io.opencensus.trace.Span;
 import io.opencensus.trace.Tracer;
 import io.opencensus.trace.Tracing;
-import io.opencensus.trace.export.SpanExporter.LoggingHandler;
+import io.opencensus.trace.export.LoggingExportHandler;
 
 /**
  * Example showing how to create a child {@link Span} using scoped Spans, install it in the current
@@ -33,7 +33,7 @@ public final class MultiSpansScopedTracing {
 
   private static void doSomeMoreWork() {
     // Create a child Span of the current Span.
-    try (NonThrowingCloseable ss = tracer.spanBuilder("MyChildSpan").startScopedSpan()) {
+    try (Scope ss = tracer.spanBuilder("MyChildSpan").startScopedSpan()) {
       doSomeOtherWork();
     }
   }
@@ -44,11 +44,14 @@ public final class MultiSpansScopedTracing {
     tracer.getCurrentSpan().addAnnotation("Annotation to the root Span after child is ended.");
   }
 
-  /** Main method. */
+  /**
+   * Main method.
+   *
+   * @param args the main arguments.
+   */
   public static void main(String[] args) {
-    LoggingHandler.register(Tracing.getExportComponent().getSpanExporter());
-    try (NonThrowingCloseable ss =
-        tracer.spanBuilder(null,"MyRootSpan").startScopedSpan()) {
+    LoggingExportHandler.register(Tracing.getExportComponent().getSpanExporter());
+    try (Scope ss = tracer.spanBuilderWithExplicitParent("MyRootSpan", null).startScopedSpan()) {
       doWork();
     }
   }

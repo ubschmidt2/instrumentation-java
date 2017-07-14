@@ -21,15 +21,6 @@ import io.opencensus.internal.TimestampConverter;
 import io.opencensus.testing.common.TestClock;
 import io.opencensus.trace.Span.Options;
 import io.opencensus.trace.SpanImpl.StartEndHandler;
-import io.opencensus.trace.base.Annotation;
-import io.opencensus.trace.base.AttributeValue;
-import io.opencensus.trace.base.EndSpanOptions;
-import io.opencensus.trace.base.Link;
-import io.opencensus.trace.base.NetworkEvent;
-import io.opencensus.trace.base.SpanId;
-import io.opencensus.trace.base.Status;
-import io.opencensus.trace.base.TraceId;
-import io.opencensus.trace.base.TraceOptions;
 import io.opencensus.trace.config.TraceParams;
 import io.opencensus.trace.export.SpanData;
 import java.util.EnumSet;
@@ -92,7 +83,7 @@ public class SpanImplTest {
     span.addAnnotation(Annotation.fromDescription(ANNOTATION_DESCRIPTION));
     span.addAnnotation(ANNOTATION_DESCRIPTION, attributes);
     span.addNetworkEvent(NetworkEvent.builder(NetworkEvent.Type.RECV, 1).setMessageSize(3).build());
-    span.addLink(Link.fromSpanContext(spanContext, Link.Type.CHILD));
+    span.addLink(Link.fromSpanContext(spanContext, Link.Type.CHILD_LINKED_SPAN));
     span.end();
     exception.expect(IllegalStateException.class);
     span.toSpanData();
@@ -118,7 +109,7 @@ public class SpanImplTest {
     span.addAnnotation(Annotation.fromDescription(ANNOTATION_DESCRIPTION));
     span.addAnnotation(ANNOTATION_DESCRIPTION, attributes);
     span.addNetworkEvent(NetworkEvent.builder(NetworkEvent.Type.RECV, 1).setMessageSize(3).build());
-    span.addLink(Link.fromSpanContext(spanContext, Link.Type.CHILD));
+    span.addLink(Link.fromSpanContext(spanContext, Link.Type.CHILD_LINKED_SPAN));
     SpanData spanData = span.toSpanData();
     assertThat(spanData.getStartTimestamp()).isEqualTo(timestamp);
     assertThat(spanData.getAttributes().getAttributeMap()).isEmpty();
@@ -153,11 +144,11 @@ public class SpanImplTest {
         NetworkEvent.builder(NetworkEvent.Type.RECV, 1).setMessageSize(3).build();
     span.addNetworkEvent(networkEvent);
     testClock.advanceTime(Duration.create(0, 100));
-    Link link = Link.fromSpanContext(spanContext, Link.Type.CHILD);
+    Link link = Link.fromSpanContext(spanContext, Link.Type.CHILD_LINKED_SPAN);
     span.addLink(link);
     SpanData spanData = span.toSpanData();
     assertThat(spanData.getContext()).isEqualTo(spanContext);
-    assertThat(spanData.getDisplayName()).isEqualTo(SPAN_NAME);
+    assertThat(spanData.getName()).isEqualTo(SPAN_NAME);
     assertThat(spanData.getParentSpanId()).isEqualTo(parentSpanId);
     assertThat(spanData.getHasRemoteParent()).isTrue();
     assertThat(spanData.getAttributes().getDroppedAttributesCount()).isEqualTo(0);
@@ -208,14 +199,14 @@ public class SpanImplTest {
     NetworkEvent networkEvent =
         NetworkEvent.builder(NetworkEvent.Type.RECV, 1).setMessageSize(3).build();
     span.addNetworkEvent(networkEvent);
-    Link link = Link.fromSpanContext(spanContext, Link.Type.CHILD);
+    Link link = Link.fromSpanContext(spanContext, Link.Type.CHILD_LINKED_SPAN);
     span.addLink(link);
     testClock.advanceTime(Duration.create(0, 100));
     span.end(EndSpanOptions.builder().setStatus(Status.CANCELLED).build());
     Mockito.verify(startEndHandler, Mockito.times(1)).onEnd(span);
     SpanData spanData = span.toSpanData();
     assertThat(spanData.getContext()).isEqualTo(spanContext);
-    assertThat(spanData.getDisplayName()).isEqualTo(SPAN_NAME);
+    assertThat(spanData.getName()).isEqualTo(SPAN_NAME);
     assertThat(spanData.getParentSpanId()).isEqualTo(parentSpanId);
     assertThat(spanData.getHasRemoteParent()).isFalse();
     assertThat(spanData.getAttributes().getDroppedAttributesCount()).isEqualTo(0);
@@ -451,7 +442,7 @@ public class SpanImplTest {
             startEndHandler,
             timestampConverter,
             testClock);
-    Link link = Link.fromSpanContext(spanContext, Link.Type.CHILD);
+    Link link = Link.fromSpanContext(spanContext, Link.Type.CHILD_LINKED_SPAN);
     for (int i = 0; i < 2 * maxNumberOfLinks; i++) {
       span.addLink(link);
     }

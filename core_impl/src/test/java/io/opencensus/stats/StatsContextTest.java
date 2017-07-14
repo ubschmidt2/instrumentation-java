@@ -21,8 +21,9 @@ import com.google.common.testing.EqualsTester;
 import io.opencensus.common.Function;
 import io.opencensus.internal.SimpleEventQueue;
 import io.opencensus.internal.VarInt;
-import io.opencensus.stats.View.DistributionView;
-import io.opencensus.stats.View.IntervalView;
+import io.opencensus.stats.Measure.MeasureLong;
+import io.opencensus.stats.ViewData.DistributionViewData;
+import io.opencensus.stats.ViewData.IntervalViewData;
 import io.opencensus.testing.common.TestClock;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -32,13 +33,21 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
-/** Tests for {@link StatsContext}. */
+/**
+ * Tests for {@link StatsContext}.
+ */
 @RunWith(JUnit4.class)
 public class StatsContextTest {
+
+  @Rule
+  public final ExpectedException thrown = ExpectedException.none();
+
   private static final double TOLERANCE = 1e-6;
 
   private final StatsComponentImplBase statsComponent =
@@ -97,69 +106,83 @@ public class StatsContextTest {
 
     StatsContext context4 = context3.with(K3, V30, K4, V4);
     assertThat(
-            defaultStatsContext
-                .builder()
-                .set(K1, V100)
-                .set(K2, V20)
-                .set(K3, V30)
-                .set(K4, V4)
-                .build())
+        defaultStatsContext
+            .builder()
+            .set(K1, V100)
+            .set(K2, V20)
+            .set(K3, V30)
+            .set(K4, V4)
+            .build())
         .isEqualTo(context4);
   }
 
-  // The main tests for stats recording are in StatsManagerImplTest.
+  // The main tests for stats recording are in ViewManagerImplTest.
   @Test
-  public void testRecord() {
+  public void testRecordDouble() {
     viewManager.registerView(RpcViewConstants.RPC_CLIENT_ROUNDTRIP_LATENCY_VIEW);
-    View beforeView =
-        viewManager.getView(
-            RpcViewConstants.RPC_CLIENT_ROUNDTRIP_LATENCY_VIEW);
-    beforeView.match(
-        new Function<DistributionView, Void>() {
+    ViewData beforeViewData =
+        viewManager.getView(RpcViewConstants.RPC_CLIENT_ROUNDTRIP_LATENCY_VIEW);
+    beforeViewData.match(
+        new Function<DistributionViewData, Void>() {
           @Override
-          public Void apply(DistributionView view) {
-            assertThat(view.getDistributionAggregations()).isEmpty();
+          public Void apply(DistributionViewData view) {
+            assertThat(view.getDistributionAggregates()).isEmpty();
             return null;
           }
         },
-        new Function<IntervalView, Void>() {
+        new Function<IntervalViewData, Void>() {
           @Override
-          public Void apply(IntervalView view) {
-            fail("Expected a DistributionView");
+          public Void apply(IntervalViewData view) {
+            fail("Expected a DistributionViewData");
             return null;
           }
         });
     StatsContext context =
         defaultStatsContext.with(
-            RpcMeasurementConstants.RPC_CLIENT_METHOD, TagValue.create("myMethod"));
-    MeasurementMap measurements =
-        MeasurementMap.of(RpcMeasurementConstants.RPC_CLIENT_ROUNDTRIP_LATENCY, 5.1);
+            RpcMeasureConstants.RPC_CLIENT_METHOD, TagValue.create("myMethod"));
+    MeasureMap measurements =
+        MeasureMap.builder()
+            .set(RpcMeasureConstants.RPC_CLIENT_ROUNDTRIP_LATENCY, 5.1).build();
     context.record(measurements);
-    View afterView =
+    ViewData afterViewData =
         viewManager.getView(
             RpcViewConstants.RPC_CLIENT_ROUNDTRIP_LATENCY_VIEW);
-    afterView.match(
-        new Function<DistributionView, Void>() {
+    afterViewData.match(
+        new Function<DistributionViewData, Void>() {
           @Override
-          public Void apply(DistributionView view) {
-            assertThat(view.getDistributionAggregations()).hasSize(1);
-            DistributionAggregation agg = view.getDistributionAggregations().get(0);
+          public Void apply(DistributionViewData view) {
+            assertThat(view.getDistributionAggregates()).hasSize(1);
+            DistributionAggregate agg = view.getDistributionAggregates().get(0);
             assertThat(agg.getTags())
                 .containsExactly(
                     Tag.create(
-                        RpcMeasurementConstants.RPC_CLIENT_METHOD, TagValue.create("myMethod")));
+                        RpcMeasureConstants.RPC_CLIENT_METHOD, TagValue.create("myMethod")));
             assertThat(agg.getCount()).isEqualTo(1);
             assertThat(agg.getMean()).isWithin(TOLERANCE).of(5.1);
             return null;
           }
         },
-        new Function<IntervalView, Void>() {
+        new Function<IntervalViewData, Void>() {
           @Override
-          public Void apply(IntervalView view) {
-            fail("Expected a DistributionView");
+          public Void apply(IntervalViewData view) {
+            fail("Expected a DistributionViewData");
             return null;
           }
         });
+  }
+
+  @Test
+  public void testRecordLong() {
+    MeasureLong measure = MeasureLong.create("long measure", "description", "1");
+    viewManager.registerView(
+        View.DistributionView.create(
+            View.Name.create("name"),
+            "description",
+            measure,
+            DistributionAggregation.create(),
+            Arrays.asList(K1)));
+    thrown.expect(UnsupportedOperationException.class);
+    defaultStatsContext.with(K1, V1).record(MeasureMap.builder().set(measure,1L).build());
   }
 
   @Test

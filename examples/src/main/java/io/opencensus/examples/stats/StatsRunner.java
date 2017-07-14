@@ -13,17 +13,20 @@
 
 package io.opencensus.examples.stats;
 
-import io.opencensus.common.NonThrowingCloseable;
-import io.opencensus.stats.Measure;
-import io.opencensus.stats.MeasurementMap;
+import io.opencensus.common.Scope;
+import io.opencensus.stats.Measure.MeasureDouble;
+import io.opencensus.stats.MeasureMap;
 import io.opencensus.stats.Stats;
 import io.opencensus.stats.StatsContext;
 import io.opencensus.stats.StatsContextFactory;
 import io.opencensus.stats.TagKey;
 import io.opencensus.stats.TagValue;
 
-/** Simple program that uses Stats contexts. */
+/**
+ * Simple program that uses Stats contexts.
+ */
 public class StatsRunner {
+
   private static final TagKey K1 = TagKey.create("k1");
   private static final TagKey K2 = TagKey.create("k2");
   private static final TagKey K3 = TagKey.create("k3");
@@ -35,32 +38,36 @@ public class StatsRunner {
   private static final TagValue V4 = TagValue.create("v4");
 
   private static final String UNIT = "1";
-  private static final Measure M1 =
-      Measure.DoubleMeasure.create("m1", "1st test metric", UNIT);
-  private static final Measure M2 =
-      Measure.DoubleMeasure.create("m2", "2nd test metric", UNIT);
+  private static final MeasureDouble M1 =
+      MeasureDouble.create("m1", "1st test metric", UNIT);
+  private static final MeasureDouble M2 =
+      MeasureDouble.create("m2", "2nd test metric", UNIT);
 
   private static final StatsContextFactory factory = Stats.getStatsContextFactory();
   private static final StatsContext DEFAULT = factory.getDefault();
 
-  /** Main method. */
+  /**
+   * Main method.
+   *
+   * @param args the main arguments.
+   */
   public static void main(String[] args) {
     System.out.println("Hello Stats World");
     System.out.println("Default Tags: " + DEFAULT);
     System.out.println("Current Tags: " + factory.getCurrentStatsContext());
     StatsContext tags1 = DEFAULT.with(K1, V1, K2, V2);
-    try (NonThrowingCloseable scopedStatsCtx1 = factory.withStatsContext(tags1)) {
+    try (Scope scopedStatsCtx1 = factory.withStatsContext(tags1)) {
       System.out.println("  Current Tags: " + factory.getCurrentStatsContext());
       System.out.println(
-          "  Current == Default + tags1: "
-              + factory.getCurrentStatsContext().equals(tags1));
+          "  Current == Default + tags1: " + factory.getCurrentStatsContext().equals(tags1));
       StatsContext tags2 = tags1.with(K3, V3, K4, V4);
-      try (NonThrowingCloseable scopedStatsCtx2 = factory.withStatsContext(tags2)) {
+      try (Scope scopedStatsCtx2 = factory.withStatsContext(tags2)) {
         System.out.println("    Current Tags: " + factory.getCurrentStatsContext());
         System.out.println(
             "    Current == Default + tags1 + tags2: "
                 + factory.getCurrentStatsContext().equals(tags2));
-        factory.getCurrentStatsContext().record(MeasurementMap.of(M1, 0.2, M2, 0.4));
+        factory.getCurrentStatsContext().record(
+            MeasureMap.builder().set(M1, 0.2).set(M2, 0.4).build());
       }
     }
     System.out.println("Current == Default: " + factory.getCurrentStatsContext().equals(DEFAULT));

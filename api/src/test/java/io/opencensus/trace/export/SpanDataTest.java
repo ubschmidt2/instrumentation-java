@@ -17,16 +17,16 @@ import static com.google.common.truth.Truth.assertThat;
 
 import com.google.common.testing.EqualsTester;
 import io.opencensus.common.Timestamp;
+import io.opencensus.trace.Annotation;
+import io.opencensus.trace.AttributeValue;
+import io.opencensus.trace.Link;
+import io.opencensus.trace.Link.Type;
+import io.opencensus.trace.NetworkEvent;
 import io.opencensus.trace.SpanContext;
-import io.opencensus.trace.base.Annotation;
-import io.opencensus.trace.base.AttributeValue;
-import io.opencensus.trace.base.Link;
-import io.opencensus.trace.base.Link.Type;
-import io.opencensus.trace.base.NetworkEvent;
-import io.opencensus.trace.base.SpanId;
-import io.opencensus.trace.base.Status;
-import io.opencensus.trace.base.TraceId;
-import io.opencensus.trace.base.TraceOptions;
+import io.opencensus.trace.SpanId;
+import io.opencensus.trace.Status;
+import io.opencensus.trace.TraceId;
+import io.opencensus.trace.TraceOptions;
 import io.opencensus.trace.export.SpanData.Attributes;
 import io.opencensus.trace.export.SpanData.Links;
 import io.opencensus.trace.export.SpanData.TimedEvent;
@@ -50,7 +50,7 @@ public class SpanDataTest {
   private static final Timestamp eventTimestamp2 = Timestamp.create(123, 458);
   private static final Timestamp eventTimestamp3 = Timestamp.create(123, 459);
   private static final Timestamp endTimestamp = Timestamp.create(123, 460);
-  private static final String DISPLAY_NAME = "MySpanDisplayName";
+  private static final String SPAN_NAME = "MySpanName";
   private static final String ANNOTATION_TEXT = "MyAnnotationText";
   private static final Annotation annotation = Annotation.fromDescription(ANNOTATION_TEXT);
   private static final NetworkEvent recvNetworkEvent =
@@ -58,6 +58,7 @@ public class SpanDataTest {
   private static final NetworkEvent sentNetworkEvent =
       NetworkEvent.builder(NetworkEvent.Type.SENT, 1).build();
   private static final Status status = Status.DEADLINE_EXCEEDED.withDescription("TooSlow");
+  private static final int CHILD_SPAN_COUNT = 13;
   private final Random random = new Random(1234);
   private final SpanContext spanContext =
       SpanContext.create(
@@ -85,7 +86,7 @@ public class SpanDataTest {
     networkEventsList.add(SpanData.TimedEvent.create(eventTimestamp1, recvNetworkEvent));
     networkEventsList.add(SpanData.TimedEvent.create(eventTimestamp2, sentNetworkEvent));
     networkEvents = TimedEvents.create(networkEventsList, 3);
-    linksList.add(Link.fromSpanContext(spanContext, Type.CHILD));
+    linksList.add(Link.fromSpanContext(spanContext, Type.CHILD_LINKED_SPAN));
     links = Links.create(linksList, 0);
   }
 
@@ -96,23 +97,25 @@ public class SpanDataTest {
             spanContext,
             parentSpanId,
             true,
-            DISPLAY_NAME,
+            SPAN_NAME,
             startTimestamp,
             attributes,
             annotations,
             networkEvents,
             links,
+            CHILD_SPAN_COUNT,
             status,
             endTimestamp);
     assertThat(spanData.getContext()).isEqualTo(spanContext);
     assertThat(spanData.getParentSpanId()).isEqualTo(parentSpanId);
     assertThat(spanData.getHasRemoteParent()).isTrue();
-    assertThat(spanData.getDisplayName()).isEqualTo(DISPLAY_NAME);
+    assertThat(spanData.getName()).isEqualTo(SPAN_NAME);
     assertThat(spanData.getStartTimestamp()).isEqualTo(startTimestamp);
     assertThat(spanData.getAttributes()).isEqualTo(attributes);
     assertThat(spanData.getAnnotations()).isEqualTo(annotations);
     assertThat(spanData.getNetworkEvents()).isEqualTo(networkEvents);
     assertThat(spanData.getLinks()).isEqualTo(links);
+    assertThat(spanData.getChildSpanCount()).isEqualTo(CHILD_SPAN_COUNT);
     assertThat(spanData.getStatus()).isEqualTo(status);
     assertThat(spanData.getEndTimestamp()).isEqualTo(endTimestamp);
   }
@@ -123,24 +126,26 @@ public class SpanDataTest {
         SpanData.create(
             spanContext,
             null,
-            false,
-            DISPLAY_NAME,
+            null,
+            SPAN_NAME,
             startTimestamp,
             attributes,
             annotations,
             networkEvents,
             links,
             null,
+            null,
             null);
     assertThat(spanData.getContext()).isEqualTo(spanContext);
     assertThat(spanData.getParentSpanId()).isNull();
-    assertThat(spanData.getHasRemoteParent()).isFalse();
-    assertThat(spanData.getDisplayName()).isEqualTo(DISPLAY_NAME);
+    assertThat(spanData.getHasRemoteParent()).isNull();
+    assertThat(spanData.getName()).isEqualTo(SPAN_NAME);
     assertThat(spanData.getStartTimestamp()).isEqualTo(startTimestamp);
     assertThat(spanData.getAttributes()).isEqualTo(attributes);
     assertThat(spanData.getAnnotations()).isEqualTo(annotations);
     assertThat(spanData.getNetworkEvents()).isEqualTo(networkEvents);
     assertThat(spanData.getLinks()).isEqualTo(links);
+    assertThat(spanData.getChildSpanCount()).isNull();
     assertThat(spanData.getStatus()).isNull();
     assertThat(spanData.getEndTimestamp()).isNull();
   }
@@ -152,23 +157,25 @@ public class SpanDataTest {
             spanContext,
             parentSpanId,
             false,
-            DISPLAY_NAME,
+            SPAN_NAME,
             startTimestamp,
             Attributes.create(Collections.<String, AttributeValue>emptyMap(), 0),
             TimedEvents.create(Collections.<SpanData.TimedEvent<Annotation>>emptyList(), 0),
             TimedEvents.create(Collections.<SpanData.TimedEvent<NetworkEvent>>emptyList(), 0),
             Links.create(Collections.<Link>emptyList(), 0),
+            0,
             status,
             endTimestamp);
     assertThat(spanData.getContext()).isEqualTo(spanContext);
     assertThat(spanData.getParentSpanId()).isEqualTo(parentSpanId);
     assertThat(spanData.getHasRemoteParent()).isFalse();
-    assertThat(spanData.getDisplayName()).isEqualTo(DISPLAY_NAME);
+    assertThat(spanData.getName()).isEqualTo(SPAN_NAME);
     assertThat(spanData.getStartTimestamp()).isEqualTo(startTimestamp);
     assertThat(spanData.getAttributes().getAttributeMap().isEmpty()).isTrue();
     assertThat(spanData.getAnnotations().getEvents().isEmpty()).isTrue();
     assertThat(spanData.getNetworkEvents().getEvents().isEmpty()).isTrue();
     assertThat(spanData.getLinks().getLinks().isEmpty()).isTrue();
+    assertThat(spanData.getChildSpanCount()).isEqualTo(0);
     assertThat(spanData.getStatus()).isEqualTo(status);
     assertThat(spanData.getEndTimestamp()).isEqualTo(endTimestamp);
   }
@@ -180,12 +187,13 @@ public class SpanDataTest {
             spanContext,
             parentSpanId,
             false,
-            DISPLAY_NAME,
+            SPAN_NAME,
             startTimestamp,
             attributes,
             annotations,
             networkEvents,
             links,
+            CHILD_SPAN_COUNT,
             status,
             endTimestamp);
     SpanData allSpanData2 =
@@ -193,12 +201,13 @@ public class SpanDataTest {
             spanContext,
             parentSpanId,
             false,
-            DISPLAY_NAME,
+            SPAN_NAME,
             startTimestamp,
             attributes,
             annotations,
             networkEvents,
             links,
+            CHILD_SPAN_COUNT,
             status,
             endTimestamp);
     SpanData emptySpanData =
@@ -206,12 +215,13 @@ public class SpanDataTest {
             spanContext,
             parentSpanId,
             false,
-            DISPLAY_NAME,
+            SPAN_NAME,
             startTimestamp,
             Attributes.create(Collections.<String, AttributeValue>emptyMap(), 0),
             TimedEvents.create(Collections.<SpanData.TimedEvent<Annotation>>emptyList(), 0),
             TimedEvents.create(Collections.<SpanData.TimedEvent<NetworkEvent>>emptyList(), 0),
             Links.create(Collections.<Link>emptyList(), 0),
+            0,
             status,
             endTimestamp);
     new EqualsTester()
@@ -227,18 +237,19 @@ public class SpanDataTest {
                 spanContext,
                 parentSpanId,
                 false,
-                DISPLAY_NAME,
+                SPAN_NAME,
                 startTimestamp,
                 attributes,
                 annotations,
                 networkEvents,
                 links,
+                CHILD_SPAN_COUNT,
                 status,
                 endTimestamp)
             .toString();
     assertThat(spanDataString).contains(spanContext.toString());
     assertThat(spanDataString).contains(parentSpanId.toString());
-    assertThat(spanDataString).contains(DISPLAY_NAME);
+    assertThat(spanDataString).contains(SPAN_NAME);
     assertThat(spanDataString).contains(startTimestamp.toString());
     assertThat(spanDataString).contains(attributes.toString());
     assertThat(spanDataString).contains(annotations.toString());

@@ -17,12 +17,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import io.opencensus.common.Clock;
 import io.opencensus.internal.TimestampConverter;
-import io.opencensus.trace.base.Link;
-import io.opencensus.trace.base.Link.Type;
-import io.opencensus.trace.base.Sampler;
-import io.opencensus.trace.base.SpanId;
-import io.opencensus.trace.base.TraceId;
-import io.opencensus.trace.base.TraceOptions;
+import io.opencensus.trace.Link.Type;
 import io.opencensus.trace.config.TraceConfig;
 import io.opencensus.trace.config.TraceParams;
 import io.opencensus.trace.internal.RandomHandler;
@@ -37,15 +32,15 @@ final class SpanBuilderImpl extends SpanBuilder {
   private final Options options;
 
   private final String name;
-  private final Span parentSpan;
+  private final Span parent;
   private final SpanContext remoteParentSpanContext;
   private Sampler sampler;
   private List<Span> parentLinks = Collections.<Span>emptyList();
   private Boolean recordEvents;
 
-  private Span startSpanInternal(
+  private SpanImpl startSpanInternal(
       @Nullable SpanContext parent,
-      boolean hasRemoteParent,
+      @Nullable Boolean hasRemoteParent,
       String name,
       Sampler sampler,
       List<Span> parentLinks,
@@ -62,7 +57,7 @@ final class SpanBuilderImpl extends SpanBuilder {
       traceId = TraceId.generateRandomId(random);
       traceOptionsBuilder = TraceOptions.builder();
       // This is a root span so no remote or local parent.
-      hasRemoteParent = false;
+      hasRemoteParent = null;
     } else {
       // New child span.
       traceId = parent.getTraceId();
@@ -80,7 +75,7 @@ final class SpanBuilderImpl extends SpanBuilder {
     if (traceOptions.isSampled() || Boolean.TRUE.equals(recordEvents)) {
       spanOptions.add(Span.Options.RECORD_EVENTS);
     }
-    Span span =
+    SpanImpl span =
         SpanImpl.startSpan(
             SpanContext.create(traceId, spanId, traceOptions),
             spanOptions,
@@ -97,44 +92,44 @@ final class SpanBuilderImpl extends SpanBuilder {
 
   private static void linkSpans(Span span, List<Span> parentLinks) {
     if (!parentLinks.isEmpty()) {
-      Link childLink = Link.fromSpanContext(span.getContext(), Type.CHILD);
+      Link childLink = Link.fromSpanContext(span.getContext(), Type.CHILD_LINKED_SPAN);
       for (Span linkedSpan : parentLinks) {
         linkedSpan.addLink(childLink);
-        span.addLink(Link.fromSpanContext(linkedSpan.getContext(), Type.PARENT));
+        span.addLink(Link.fromSpanContext(linkedSpan.getContext(), Type.PARENT_LINKED_SPAN));
       }
     }
   }
 
-  static SpanBuilder createBuilder(@Nullable Span parentSpan, String name, Options options) {
-    return new SpanBuilderImpl(parentSpan, null, name, options);
+  static SpanBuilderImpl createWithParent(String spanName, @Nullable Span parent, Options options) {
+    return new SpanBuilderImpl(spanName, null, parent, options);
   }
 
-  static SpanBuilder createBuilderWithRemoteParent(
-      SpanContext remoteParentSpanContext, String name, Options options) {
-    return new SpanBuilderImpl(null, checkNotNull(remoteParentSpanContext,
-        "remoteParentSpanContext"), name, options);
+  static SpanBuilderImpl createWithRemoteParent(
+      String spanName, @Nullable SpanContext remoteParentSpanContext, Options options) {
+    return new SpanBuilderImpl(spanName, remoteParentSpanContext, null, options);
   }
 
   private SpanBuilderImpl(
-      @Nullable Span parentSpan,
-      @Nullable SpanContext remoteParentSpanContext,
       String name,
+      @Nullable SpanContext remoteParentSpanContext,
+      @Nullable Span parent,
       Options options) {
     this.name = checkNotNull(name, "name");
-    this.parentSpan = parentSpan;
+    this.parent = parent;
     this.remoteParentSpanContext = remoteParentSpanContext;
     this.options = options;
   }
 
   @Override
-  public Span startSpan() {
+  public SpanImpl startSpan() {
     SpanContext parentContext = remoteParentSpanContext;
-    boolean hasRemoteParent = parentContext != null;
+    Boolean hasRemoteParent = Boolean.TRUE;
     TimestampConverter timestampConverter = null;
-    if (!hasRemoteParent) {
+    if (remoteParentSpanContext == null) {
       // This is not a child of a remote Span. Get the parent SpanContext from the parent Span if
       // any.
-      Span parent = parentSpan;
+      Span parent = this.parent;
+      hasRemoteParent = Boolean.FALSE;
       if (parent != null) {
         parentContext = parent.getContext();
         // Pass the timestamp converter from the parent to ensure that the recorded events are in
@@ -142,6 +137,8 @@ final class SpanBuilderImpl extends SpanBuilder {
         if (parent instanceof SpanImpl) {
           timestampConverter = ((SpanImpl) parent).getTimestampConverter();
         }
+      } else {
+        hasRemoteParent = null;
       }
     }
     return startSpanInternal(
@@ -173,19 +170,19 @@ final class SpanBuilderImpl extends SpanBuilder {
   }
 
   @Override
-  public SpanBuilder setSampler(Sampler sampler) {
+  public SpanBuilderImpl setSampler(Sampler sampler) {
     this.sampler = checkNotNull(sampler, "sampler");
     return this;
   }
 
   @Override
-  public SpanBuilder setParentLinks(List<Span> parentLinks) {
+  public SpanBuilderImpl setParentLinks(List<Span> parentLinks) {
     this.parentLinks = checkNotNull(parentLinks, "parentLinks");
     return this;
   }
 
   @Override
-  public SpanBuilder setRecordEvents(boolean recordEvents) {
+  public SpanBuilderImpl setRecordEvents(boolean recordEvents) {
     this.recordEvents = recordEvents;
     return this;
   }

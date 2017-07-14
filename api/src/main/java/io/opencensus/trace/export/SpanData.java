@@ -17,14 +17,14 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.auto.value.AutoValue;
 import io.opencensus.common.Timestamp;
+import io.opencensus.trace.Annotation;
+import io.opencensus.trace.AttributeValue;
+import io.opencensus.trace.Link;
+import io.opencensus.trace.NetworkEvent;
 import io.opencensus.trace.Span;
 import io.opencensus.trace.SpanContext;
-import io.opencensus.trace.base.Annotation;
-import io.opencensus.trace.base.AttributeValue;
-import io.opencensus.trace.base.Link;
-import io.opencensus.trace.base.NetworkEvent;
-import io.opencensus.trace.base.SpanId;
-import io.opencensus.trace.base.Status;
+import io.opencensus.trace.SpanId;
+import io.opencensus.trace.Status;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -44,13 +44,15 @@ public abstract class SpanData {
    * @param context the {@code SpanContext} of the {@code Span}.
    * @param parentSpanId the parent {@code SpanId} of the {@code Span}. {@code null} if the {@code
    *     Span} is a root.
-   * @param hasRemoteParent {@code true} if the parent is on a different process.
-   * @param displayName the name of the {@code Span}.
+   * @param hasRemoteParent {@code true} if the parent {@code Span} is remote. {@code null} if this
+   *     is a root span.
+   * @param name the name of the {@code Span}.
    * @param startTimestamp the start {@code Timestamp} of the {@code Span}.
    * @param attributes the attributes associated with the {@code Span}.
    * @param annotations the annotations associated with the {@code Span}.
    * @param networkEvents the network events associated with the {@code Span}.
    * @param links the links associated with the {@code Span}.
+   * @param childSpanCount the number of child spans that were generated while the span was active.
    * @param status the {@code Status} of the {@code Span}. {@code null} if the {@code Span} is still
    *     active.
    * @param endTimestamp the end {@code Timestamp} of the {@code Span}. {@code null} if the {@code
@@ -60,25 +62,27 @@ public abstract class SpanData {
   public static SpanData create(
       SpanContext context,
       @Nullable SpanId parentSpanId,
-      boolean hasRemoteParent,
-      String displayName,
+      @Nullable Boolean hasRemoteParent,
+      String name,
       Timestamp startTimestamp,
       Attributes attributes,
       TimedEvents<Annotation> annotations,
       TimedEvents<NetworkEvent> networkEvents,
       Links links,
+      @Nullable Integer childSpanCount,
       @Nullable Status status,
       @Nullable Timestamp endTimestamp) {
     return new AutoValue_SpanData(
         context,
         parentSpanId,
         hasRemoteParent,
-        displayName,
+        name,
         startTimestamp,
         attributes,
         annotations,
         networkEvents,
         links,
+        childSpanCount,
         status,
         endTimestamp);
   }
@@ -99,18 +103,21 @@ public abstract class SpanData {
   public abstract SpanId getParentSpanId();
 
   /**
-   * Returns {@code true} if the parent is on a different process.
+   * Returns {@code true} if the parent is on a different process. {@code null} if this is a root
+   * span.
    *
-   * @return {@code true} if the parent is on a different process.
+   * @return {@code true} if the parent is on a different process. {@code null} if this is a root
+   *     span.
    */
-  public abstract boolean getHasRemoteParent();
+  @Nullable
+  public abstract Boolean getHasRemoteParent();
 
   /**
-   * Returns the display name of this {@code Span}.
+   * Returns the name of this {@code Span}.
    *
-   * @return the display name of this {@code Span}.
+   * @return the name of this {@code Span}.
    */
-  public abstract String getDisplayName();
+  public abstract String getName();
 
   /**
    * Returns the start {@code Timestamp} of this {@code Span}.
@@ -146,6 +153,17 @@ public abstract class SpanData {
    * @return links recorded for this {@code Span}.
    */
   public abstract Links getLinks();
+
+  /**
+   * Returns the number of child spans that were generated while the {@code Span} was running. If
+   * not {@code null} allows service implementations to detect missing child spans.
+   *
+   * <p>This information is not always available.
+   *
+   * @return the number of child spans that were generated while the {@code Span} was running.
+   */
+  @Nullable
+  public abstract Integer getChildSpanCount();
 
   /**
    * Returns the {@code Status} or {@code null} if {@code Span} is still active.

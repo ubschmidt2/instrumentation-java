@@ -16,7 +16,7 @@ package io.opencensus.examples.trace;
 import io.opencensus.trace.Span;
 import io.opencensus.trace.Tracer;
 import io.opencensus.trace.Tracing;
-import io.opencensus.trace.export.SpanExporter.LoggingHandler;
+import io.opencensus.trace.export.LoggingExportHandler;
 
 /** Example showing how to directly create a child {@link Span} and add annotations. */
 public final class MultiSpansTracing {
@@ -24,18 +24,22 @@ public final class MultiSpansTracing {
   private static final Tracer tracer = Tracing.getTracer();
 
   private static void doWork() {
-    Span rootSpan = tracer.spanBuilder(null, "MyRootSpan").startSpan();
+    Span rootSpan = tracer.spanBuilderWithExplicitParent("MyRootSpan", null).startSpan();
     rootSpan.addAnnotation("Annotation to the root Span before child is created.");
-    Span childSpan = tracer.spanBuilder(rootSpan, "MyChildSpan").startSpan();
+    Span childSpan = tracer.spanBuilderWithExplicitParent("MyChildSpan", rootSpan).startSpan();
     childSpan.addAnnotation("Annotation to the child Span");
     childSpan.end();
     rootSpan.addAnnotation("Annotation to the root Span after child is ended.");
     rootSpan.end();
   }
 
-  /** Main method. */
+  /**
+   * Main method.
+   *
+   * @param args the main arguments.
+   */
   public static void main(String[] args) {
-    LoggingHandler.register(Tracing.getExportComponent().getSpanExporter());
+    LoggingExportHandler.register(Tracing.getExportComponent().getSpanExporter());
     doWork();
   }
 }

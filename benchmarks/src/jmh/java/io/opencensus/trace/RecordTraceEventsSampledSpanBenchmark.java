@@ -13,9 +13,6 @@
 
 package io.opencensus.trace;
 
-import io.opencensus.trace.base.AttributeValue;
-import io.opencensus.trace.base.Link;
-import io.opencensus.trace.base.NetworkEvent;
 import io.opencensus.trace.samplers.Samplers;
 import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
@@ -35,10 +32,16 @@ public class RecordTraceEventsSampledSpanBenchmark {
   private static final String ANNOTATION_DESCRIPTION = "MyAnnotation";
   private static final String ATTRIBUTE_KEY = "MyAttributeKey";
   private static final String ATTRIBUTE_VALUE = "MyAttributeValue";
-  private Span linkedSpan =
-      tracer.spanBuilder(null, SPAN_NAME).setSampler(Samplers.alwaysSample()).startSpan();
-  private Span span =
-      tracer.spanBuilder(null, SPAN_NAME).setSampler(Samplers.alwaysSample()).startSpan();
+  private final Span linkedSpan =
+      tracer
+          .spanBuilderWithExplicitParent(SPAN_NAME, null)
+          .setSampler(Samplers.alwaysSample())
+          .startSpan();
+  private final Span span =
+      tracer
+          .spanBuilderWithExplicitParent(SPAN_NAME, null)
+          .setSampler(Samplers.alwaysSample())
+          .startSpan();
 
   /** TearDown method. */
   @TearDown
@@ -81,7 +84,7 @@ public class RecordTraceEventsSampledSpanBenchmark {
   @BenchmarkMode(Mode.SampleTime)
   @OutputTimeUnit(TimeUnit.NANOSECONDS)
   public Span addLink() {
-    span.addLink(Link.fromSpanContext(linkedSpan.getContext(), Link.Type.PARENT));
+    span.addLink(Link.fromSpanContext(linkedSpan.getContext(), Link.Type.PARENT_LINKED_SPAN));
     return span;
   }
 }

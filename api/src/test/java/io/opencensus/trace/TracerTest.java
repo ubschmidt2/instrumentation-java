@@ -18,7 +18,7 @@ import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.when;
 
 import io.grpc.Context;
-import io.opencensus.common.NonThrowingCloseable;
+import io.opencensus.common.Scope;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -56,7 +56,7 @@ public class TracerTest {
   @Test
   public void getCurrentSpan_WithSpan() {
     assertThat(noopTracer.getCurrentSpan()).isSameAs(BlankSpan.INSTANCE);
-    NonThrowingCloseable ws = noopTracer.withSpan(span);
+    Scope ws = noopTracer.withSpan(span);
     try {
       assertThat(noopTracer.getCurrentSpan()).isSameAs(span);
     } finally {
@@ -68,7 +68,7 @@ public class TracerTest {
   @Test
   public void propagationViaRunnable() {
     Runnable runnable;
-    NonThrowingCloseable ws = noopTracer.withSpan(span);
+    Scope ws = noopTracer.withSpan(span);
     try {
       assertThat(noopTracer.getCurrentSpan()).isSameAs(span);
       runnable =
@@ -101,12 +101,13 @@ public class TracerTest {
 
   @Test(expected = NullPointerException.class)
   public void spanBuilderWithParentAndName_NullName() {
-    noopTracer.spanBuilder(null, null);
+    noopTracer.spanBuilderWithExplicitParent(null, null);
   }
 
   @Test
   public void defaultSpanBuilderWithParentAndName() {
-    assertThat(noopTracer.spanBuilder(null, SPAN_NAME).startSpan()).isSameAs(BlankSpan.INSTANCE);
+    assertThat(noopTracer.spanBuilderWithExplicitParent(SPAN_NAME, null).startSpan())
+        .isSameAs(BlankSpan.INSTANCE);
   }
 
   @Test(expected = NullPointerException.class)
@@ -114,23 +115,25 @@ public class TracerTest {
     noopTracer.spanBuilderWithRemoteParent(null, null);
   }
 
-  @Test(expected = NullPointerException.class)
-  public void defaultSpanBuilderWitRemoteParent_NullParent() {
-    noopTracer.spanBuilderWithRemoteParent(null, SPAN_NAME);
+  @Test
+  public void defaultSpanBuilderWithRemoteParent_NullParent() {
+    assertThat(noopTracer.spanBuilderWithRemoteParent(SPAN_NAME, null).startSpan())
+        .isSameAs(BlankSpan.INSTANCE);
   }
 
   @Test
   public void defaultSpanBuilderWithRemoteParent() {
-    assertThat(noopTracer.spanBuilderWithRemoteParent(SpanContext.INVALID, SPAN_NAME).startSpan())
+    assertThat(noopTracer.spanBuilderWithRemoteParent(SPAN_NAME, SpanContext.INVALID).startSpan())
         .isSameAs(BlankSpan.INSTANCE);
   }
 
   @Test
   public void startSpanWithParentFromContext() {
-    NonThrowingCloseable ws = tracer.withSpan(span);
+    Scope ws = tracer.withSpan(span);
     try {
       assertThat(tracer.getCurrentSpan()).isSameAs(span);
-      when(tracer.spanBuilder(same(span), same(SPAN_NAME))).thenReturn(spanBuilder);
+      when(tracer.spanBuilderWithExplicitParent(same(SPAN_NAME), same(span)))
+          .thenReturn(spanBuilder);
       assertThat(tracer.spanBuilder(SPAN_NAME)).isSameAs(spanBuilder);
     } finally {
       ws.close();
@@ -139,10 +142,11 @@ public class TracerTest {
 
   @Test
   public void startSpanWithInvalidParentFromContext() {
-    NonThrowingCloseable ws = tracer.withSpan(BlankSpan.INSTANCE);
+    Scope ws = tracer.withSpan(BlankSpan.INSTANCE);
     try {
       assertThat(tracer.getCurrentSpan()).isSameAs(BlankSpan.INSTANCE);
-      when(tracer.spanBuilder(same(BlankSpan.INSTANCE), same(SPAN_NAME))).thenReturn(spanBuilder);
+      when(tracer.spanBuilderWithExplicitParent(same(SPAN_NAME), same(BlankSpan.INSTANCE)))
+          .thenReturn(spanBuilder);
       assertThat(tracer.spanBuilder(SPAN_NAME)).isSameAs(spanBuilder);
     } finally {
       ws.close();

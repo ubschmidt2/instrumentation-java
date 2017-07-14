@@ -16,50 +16,62 @@ package io.opencensus.stats;
 import static com.google.common.truth.Truth.assertThat;
 
 import io.opencensus.common.Duration;
-import io.opencensus.stats.IntervalAggregation.Interval;
 import java.util.Arrays;
-import java.util.List;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 /**
- * Tests for class {@link IntervalAggregation}.
+ * Tests for {@link IntervalAggregation}
  */
 @RunWith(JUnit4.class)
 public final class IntervalAggregationTest {
   @Test
   public void testIntervalAggregation() {
-    List<Interval> intervals =  Arrays.asList(
-        Interval.create(Duration.fromMillis(10), 100.0, 1000.0),
-        Interval.create(Duration.fromMillis(11), 101.0, 1001.0));
-    IntervalAggregation aggr = IntervalAggregation.create(TAGS, intervals);
-
-    assertThat(aggr.getTags()).hasSize(TAGS.size());
-    for (int i = 0; i < aggr.getTags().size(); i++) {
-      assertThat(aggr.getTags().get(i)).isEqualTo(TAGS.get(i));
-    }
-    assertThat(aggr.getIntervals()).hasSize(intervals.size());
-    for (int i = 0; i < aggr.getIntervals().size(); i++) {
-      assertThat(aggr.getIntervals().get(i)).isEqualTo(intervals.get(i));
+    Duration[] intervals =
+        new Duration[] { Duration.fromMillis(1), Duration.fromMillis(22), Duration.fromMillis(333)};
+    IntervalAggregation intervalAggregation =
+        IntervalAggregation.create(12, Arrays.asList(intervals));
+    assertThat(intervalAggregation.getNumSubIntervals()).isEqualTo(12);
+    assertThat(intervalAggregation.getIntervalSizes()).isNotNull();
+    assertThat(intervalAggregation.getIntervalSizes()).hasSize(intervals.length);
+    for (int i = 0; i < intervals.length; i++) {
+      assertThat(intervalAggregation.getIntervalSizes().get(i)).isEqualTo(intervals[i]);
     }
   }
 
   @Test
-  public void testInterval() {
-    Duration duration = Duration.fromMillis(10);
-    Interval interval = Interval.create(duration, 100.0, 1000.0);
-
-    assertThat(interval.getIntervalSize()).isEqualTo(duration);
-    assertThat(interval.getCount()).isWithin(0.00000001).of(100.0);
-    assertThat(interval.getSum()).isWithin(0.00000001).of(1000.0);
+  public void testIntervalAggregationWithDefaultNumSubIntervals() {
+    assertThat(
+        IntervalAggregation.create(
+            Arrays.asList(Duration.fromMillis(1))).getNumSubIntervals())
+        .isEqualTo(5);
   }
 
-  private static final TagKey K1 = TagKey.create("k1");
-  private static final TagKey K2 = TagKey.create("k2");
+  @Test
+  public void testIntervalAggregationNumSubIntervalsRange() {
+    assertThat(
+        IntervalAggregation.create(
+            2, Arrays.asList(Duration.fromMillis(1))).getNumSubIntervals())
+        .isEqualTo(2);
+    assertThat(
+        IntervalAggregation.create(
+            20, Arrays.asList(Duration.fromMillis(1))).getNumSubIntervals())
+        .isEqualTo(20);
+  }
 
-  private static final TagValue V1 = TagValue.create("v1");
-  private static final TagValue V2 = TagValue.create("v2");
+  @Test(expected = IllegalArgumentException.class)
+  public void testIntervalAggregationLowNumSubIntervals() {
+    IntervalAggregation.create(1, Arrays.asList(Duration.fromMillis(1)));
+  }
 
-  private static final List<Tag> TAGS = Arrays.asList(Tag.create(K1, V1), Tag.create(K2, V2));
+  @Test(expected = IllegalArgumentException.class)
+  public void testIntervalAggregationHighNumSubIntervals() {
+    IntervalAggregation.create(21, Arrays.asList(Duration.fromMillis(1)));
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testIntervalAggregationEmptyIntervalSizes() {
+    IntervalAggregation.create(Arrays.asList(new Duration[] { }));
+  }
 }

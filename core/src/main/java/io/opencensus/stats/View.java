@@ -15,37 +15,78 @@ package io.opencensus.stats;
 
 import com.google.auto.value.AutoValue;
 import io.opencensus.common.Function;
-import io.opencensus.common.Timestamp;
-import io.opencensus.stats.ViewDescriptor.DistributionViewDescriptor;
-import io.opencensus.stats.ViewDescriptor.IntervalViewDescriptor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import javax.annotation.concurrent.Immutable;
 
 /**
- * The aggregated data for a particular {@link ViewDescriptor}.
+ * A View specifies an aggregation and a set of tag keys. The aggregation will be broken
+ * down by the unique set of matching tag values for each measure.
  */
 @Immutable
 public abstract class View {
   /**
-   * The {@link ViewDescriptor} associated with this {@link View}.
+   * Name of view. Must be unique.
    */
-  public abstract ViewDescriptor getViewDescriptor();
+  public abstract Name getName();
+
+  /**
+   * More detailed description, for documentation purposes.
+   */
+  public abstract String getDescription();
+
+  /**
+   * Measure type of this view.
+   */
+  public abstract Measure getMeasure();
+
+  /**
+   * Dimensions (a.k.a Tag Keys) to match with the associated {@link Measure}.
+   * If no dimensions are specified, then all stats are recorded. Dimensions must be unique.
+   *
+   * <p>Note: The returned list is unmodifiable, attempts to update it will throw an
+   * UnsupportedOperationException.
+   */
+  public abstract List<TagKey> getDimensions();
 
   /**
    * Applies the given match function to the underlying data type.
    */
   public abstract <T> T match(
-      Function<DistributionView, T> p0,
-      Function<IntervalView, T> p1);
+      Function<? super DistributionView, T> p0,
+      Function<? super IntervalView, T> p1);
 
-  // Prevents this class from being subclassed anywhere else.
-  private View() {
+  /**
+   * The name of a {@code View}.
+   */
+  // This type should be used as the key when associating data with Views.
+  @Immutable
+  @AutoValue
+  public abstract static class Name {
+
+    Name() {}
+
+    /**
+     * Returns the name as a {@code String}.
+     *
+     * @return the name as a {@code String}.
+     */
+    public abstract String asString();
+
+    /**
+     * Creates a {@code View.Name} from a {@code String}.
+     *
+     * @param name the name {@code String}.
+     * @return a {@code View.Name} with the given name {@code String}.
+     */
+    public static Name create(String name) {
+      return new AutoValue_View_Name(name);
+    }
   }
 
   /**
-   * A {@link View} for distribution-based aggregations.
+   * A {@link View} for distribution-base aggregations.
    */
   @Immutable
   @AutoValue
@@ -53,47 +94,36 @@ public abstract class View {
     /**
      * Constructs a new {@link DistributionView}.
      */
-    public static DistributionView create(DistributionViewDescriptor distributionViewDescriptor,
-        List<DistributionAggregation> distributionAggregations, Timestamp start, Timestamp end) {
+    public static DistributionView create(
+        Name name,
+        String description,
+        Measure measure,
+        DistributionAggregation distributionAggregation,
+        List<TagKey> tagKeys) {
       return new AutoValue_View_DistributionView(
-          distributionViewDescriptor,
-          Collections.unmodifiableList(
-              new ArrayList<DistributionAggregation>(distributionAggregations)),
-          start,
-          end);
+          name,
+          description,
+          measure,
+          Collections.unmodifiableList(new ArrayList<TagKey>(tagKeys)),
+          distributionAggregation);
     }
 
-    @Override
-    public abstract DistributionViewDescriptor getViewDescriptor();
-
     /**
-     * The {@link DistributionAggregation}s associated with this {@link DistributionView}.
-     *
-     * <p>Note: The returned list is unmodifiable, attempts to update it will throw an
-     * UnsupportedOperationException.
+     * The {@link DistributionAggregation} associated with this
+     * {@link DistributionView}.
      */
-    public abstract List<DistributionAggregation> getDistributionAggregations();
-
-    /**
-     * Returns start timestamp for this aggregation.
-     */
-    public abstract Timestamp getStart();
-
-    /**
-     * Returns end timestamp for this aggregation.
-     */
-    public abstract Timestamp getEnd();
+    public abstract DistributionAggregation getDistributionAggregation();
 
     @Override
-    public final <T> T match(
-        Function<DistributionView, T> p0,
-        Function<IntervalView, T> p1) {
+    public <T> T match(
+        Function<? super DistributionView, T> p0,
+        Function<? super IntervalView, T> p1) {
       return p0.apply(this);
     }
   }
 
   /**
-   * A {@link View} for interval-base aggregations.
+   * A {@link View} for interval-based aggregations.
    */
   @Immutable
   @AutoValue
@@ -101,28 +131,30 @@ public abstract class View {
     /**
      * Constructs a new {@link IntervalView}.
      */
-    public static IntervalView create(IntervalViewDescriptor intervalViewDescriptor,
-        List<IntervalAggregation> intervalAggregations) {
+    public static IntervalView create(
+        Name name,
+        String description,
+        Measure measure,
+        IntervalAggregation intervalAggregation,
+        List<TagKey> tagKeys) {
       return new AutoValue_View_IntervalView(
-          intervalViewDescriptor,
-          Collections.unmodifiableList(new ArrayList<IntervalAggregation>(intervalAggregations)));
+          name,
+          description,
+          measure,
+          Collections.unmodifiableList(new ArrayList<TagKey>(tagKeys)),
+          intervalAggregation);
     }
 
-    @Override
-    public abstract IntervalViewDescriptor getViewDescriptor();
-
     /**
-     * The {@link IntervalAggregation}s associated with this {@link IntervalView}.
-     *
-     * <p>Note: The returned list is unmodifiable, attempts to update it will throw an
-     * UnsupportedOperationException.
+     * The {@link IntervalAggregation} associated with this
+     * {@link IntervalView}.
      */
-    public abstract List<IntervalAggregation> getIntervalAggregations();
+    public abstract IntervalAggregation getIntervalAggregation();
 
     @Override
-    public final <T> T match(
-        Function<DistributionView, T> p0,
-        Function<IntervalView, T> p1) {
+    public <T> T match(
+        Function<? super DistributionView, T> p0,
+        Function<? super IntervalView, T> p1) {
       return p1.apply(this);
     }
   }

@@ -16,76 +16,44 @@ package io.opencensus.stats;
 import static com.google.common.truth.Truth.assertThat;
 
 import com.google.common.testing.EqualsTester;
-import io.opencensus.stats.DistributionAggregation.Range;
 import java.util.Arrays;
-import java.util.List;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 /**
- * Tests for class {@link DistributionAggregation}.
+ * Tests for {@link DistributionAggregation}
  */
 @RunWith(JUnit4.class)
 public final class DistributionAggregationTest {
-
   @Test
-  public void testDistributionAggregationWithOutBuckets() {
-    DistributionAggregation aggr = DistributionAggregation.create(10, 5.0, 30.0,
-        Range.create(1.0, 5.0), TAGS);
-
-    assertThat(aggr.getCount()).isEqualTo(10);
-    assertThat(aggr.getMean()).isEqualTo(5.0);
-    assertThat(aggr.getSum()).isEqualTo(30.0);
-    assertThat(aggr.getRange().getMin()).isEqualTo(1.0);
-    assertThat(aggr.getRange().getMax()).isEqualTo(5.0);
-    assertThat(aggr.getTags()).hasSize(TAGS.size());
-    for (int i = 0; i < aggr.getTags().size(); i++) {
-      assertThat(aggr.getTags().get(i)).isEqualTo(TAGS.get(i));
-    }
-    assertThat(aggr.getBucketCounts()).isNull();
+  public void testDistributionAggregationEmpty() {
+    DistributionAggregation d = DistributionAggregation.create();
+    assertThat(d.getBucketBoundaries()).isNull();
   }
 
   @Test
-  public void testDistributionAggregationWithBuckets() {
-    List<Long> buckets = Arrays.asList(2L, 2L, 2L, 2L, 2L);
-    DistributionAggregation aggr = DistributionAggregation.create(10, 5.0, 30.0,
-        Range.create(1.0, 5.0), TAGS, buckets);
-
-    assertThat(aggr.getCount()).isEqualTo(10);
-    assertThat(aggr.getMean()).isEqualTo(5.0);
-    assertThat(aggr.getSum()).isEqualTo(30.0);
-    assertThat(aggr.getRange().getMin()).isEqualTo(1.0);
-    assertThat(aggr.getRange().getMax()).isEqualTo(5.0);
-    assertThat(aggr.getBucketCounts()).isNotNull();
-    assertThat(aggr.getBucketCounts()).hasSize(buckets.size());
-    assertThat(aggr.getTags()).hasSize(TAGS.size());
-    for (int i = 0; i < aggr.getTags().size(); i++) {
-      assertThat(aggr.getTags().get(i)).isEqualTo(TAGS.get(i));
-    }
-    for (int i = 0; i < aggr.getBucketCounts().size(); i++) {
-      assertThat(aggr.getBucketCounts().get(i)).isEqualTo(buckets.get(i));
+  public void testDistributionAggregation() {
+    Double[] buckets = new Double[] { 0.1, 2.2, 33.3 };
+    DistributionAggregation d =
+        DistributionAggregation.create(Arrays.asList(buckets));
+    assertThat(d.getBucketBoundaries()).isNotNull();
+    assertThat(d.getBucketBoundaries()).hasSize(buckets.length);
+    for (int i = 0; i < buckets.length; i++) {
+      assertThat(d.getBucketBoundaries().get(i))
+          .isWithin(0.00000001).of(buckets[i]);
     }
   }
 
   @Test
   public void testDistributionAggregationEquals() {
-    List<Long> buckets = Arrays.asList(1L, 2L, 3L);
     new EqualsTester()
         .addEqualityGroup(
-            DistributionAggregation.create(10, 5.0, 30.0, Range.create(1.0, 5.0), TAGS),
-            DistributionAggregation.create(10, 5.0, 30.0, Range.create(1.0, 5.0), TAGS))
+            DistributionAggregation.create(Arrays.asList(1.0, 2.0, 5.0)),
+            DistributionAggregation.create(Arrays.asList(1.0, 2.0, 5.0)))
         .addEqualityGroup(
-            DistributionAggregation.create(10, 5.0, 30.0, Range.create(1.0, 5.0), TAGS, buckets),
-            DistributionAggregation.create(10, 5.0, 30.0, Range.create(1.0, 5.0), TAGS, buckets))
+            DistributionAggregation.create(),
+            DistributionAggregation.create())
         .testEquals();
   }
-
-  private static final TagKey K1 = TagKey.create("k1");
-  private static final TagKey K2 = TagKey.create("k2");
-
-  private static final TagValue V1 = TagValue.create("v1");
-  private static final TagValue V2 = TagValue.create("v2");
-
-  private static final List<Tag> TAGS = Arrays.asList(Tag.create(K1, V1), Tag.create(K2, V2));
 }

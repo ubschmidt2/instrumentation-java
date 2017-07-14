@@ -20,84 +20,67 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Contains summary stats over various time intervals.
+ * Describes data aggregations based on time intervals.
  */
 public final class IntervalAggregation {
   /**
-   * Constructs new {@link IntervalAggregation}.
-   * TODO(dpo): Determine what we should do it intervals is empty.
+   * Constructs a new {@link IntervalAggregation}.
+   *
+   * <p>The given {@code numSubIntervals} must be in the range [2, 20], see
+   * {@link #getNumSubIntervals()} for more details.
+   *
+   * <p>The given {@code intervalSizes} must have at least one entry.
    */
-  public static final IntervalAggregation create(List<Tag> tags, List<Interval> intervals) {
-    return new IntervalAggregation(tags, intervals);
+  public static IntervalAggregation create(
+      int numSubIntervals, List<Duration> intervalSizes) {
+    if (numSubIntervals < 2 || numSubIntervals > 20) {
+      throw new IllegalArgumentException(
+          "The number of subintervals must be in the range [2, 20].");
+    }
+    if (intervalSizes.isEmpty()) {
+      throw new IllegalArgumentException("There must be at least one interval size.");
+    }
+    return new IntervalAggregation(
+        numSubIntervals,
+        Collections.unmodifiableList(new ArrayList<Duration>(intervalSizes)));
   }
 
   /**
-   * {@link Tag}s associated with this aggregation.
+   * Constructs a new {@link IntervalAggregation} with the number of sub intervals set
+   * to the default value of 5.
+   */
+  public static IntervalAggregation create(List<Duration> intervalSizes) {
+    return create(5, intervalSizes);
+  }
+
+  /**
+   * The number of sub intervals.
+   *
+   * <p>The number of internal sub-intervals to use when collecting stats for each interval. The
+   * max error in interval measurements will be approximately 1/getNumSubIntervals()
+   * (although in practice, this will only be approached in the presence of very large and bursty
+   * workload changes), and underlying memory usage will be roughly proportional to the value of
+   * this field. Must be in the range [2, 20]. A value of 5 will be used if this is unspecified.
+   */
+  public int getNumSubIntervals() {
+    return numSubIntervals;
+  }
+
+  /**
+   * The time intervals to record for the aggregation.
    *
    * <p>Note: The returned list is unmodifiable, attempts to update it will throw an
    * UnsupportedOperationException.
    */
-  public final List<Tag> getTags() {
-    return tags;
+  public List<Duration> getIntervalSizes() {
+    return intervalSizes;
   }
 
-  /**
-   * Sequence of intervals for this aggregation.
-   */
-  public List<Interval> getIntervals() {
-    return intervals;
-  }
+  private final int numSubIntervals;
+  private final List<Duration> intervalSizes;
 
-  private final List<Tag> tags;
-  private final List<Interval> intervals;
-
-  private IntervalAggregation(List<Tag> tags, List<Interval> intervals) {
-    this.tags = tags;
-    this.intervals = Collections.unmodifiableList(new ArrayList<Interval>(intervals));
-  }
-
-  /**
-   * Summary statistic over a single time interval.
-   */
-  public static final class Interval {
-    /**
-     * Constructs a new {@link Interval}.
-     *
-     * <p>Note: {@code intervalSize} must be positive otherwise behavior is unspecified.
-     */
-    public static Interval create(Duration intervalSize, double count, double sum) {
-      return new Interval(intervalSize, count, sum);
-    }
-
-    /**
-     * The interval duration.
-     */
-    public Duration getIntervalSize() {
-      return intervalSize;
-    }
-
-    /**
-     * The number of measurements in this interval.
-     */
-    public double getCount() {
-      return count;
-    }
-
-    /**
-     * The cumulative sum of measurements in this interval.
-     */
-    public double getSum() {
-      return sum;
-    }
-
-    private final Duration intervalSize;
-    private final double count;
-    private final double sum;
-
-    private Interval(Duration intervalSize, double count, double sum) {
-      this.intervalSize = intervalSize;
-      this.count = count;
-      this.sum = sum;
-    }
+  private IntervalAggregation(int numSubIntervals, List<Duration> intervalSizes) {
+    this.numSubIntervals = numSubIntervals;
+    this.intervalSizes = intervalSizes;
   }
 }

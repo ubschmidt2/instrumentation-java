@@ -17,62 +17,65 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import io.opencensus.common.Clock;
 import io.opencensus.common.Function;
-import io.opencensus.stats.MutableView.MutableDistributionView;
-import io.opencensus.stats.MutableView.MutableIntervalView;
-import io.opencensus.stats.ViewDescriptor.DistributionViewDescriptor;
-import io.opencensus.stats.ViewDescriptor.IntervalViewDescriptor;
+import io.opencensus.stats.Measurement.MeasurementDouble;
+import io.opencensus.stats.Measurement.MeasurementLong;
+import io.opencensus.stats.MutableViewData.MutableDistributionViewData;
+import io.opencensus.stats.MutableViewData.MutableIntervalViewData;
+import io.opencensus.stats.View.DistributionView;
+import io.opencensus.stats.View.IntervalView;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 /**
  * A class that stores a singleton map from {@code MeasureName}s to {@link
- * MutableView}s.
+ * MutableViewData}s.
  */
 final class MeasureToViewMap {
 
   /*
    * A synchronized singleton map that stores the one-to-many mapping from Measures
-   * to MutableViews.
+   * to MutableViewDatas.
    */
   @GuardedBy("this")
-  private final Multimap<String, MutableView> mutableMap =
-      HashMultimap.<String, MutableView>create();
+  private final Multimap<String, MutableViewData> mutableMap =
+      HashMultimap.<String, MutableViewData>create();
 
   @GuardedBy("this")
-  private final Map<ViewDescriptor.Name, ViewDescriptor> registeredViews =
-      new HashMap<ViewDescriptor.Name, ViewDescriptor>();
+  private final Map<View.Name, View> registeredViews =
+      new HashMap<View.Name, View>();
 
-  /** Returns a {@link View} corresponding to the given {@link ViewDescriptor.Name}. */
-  synchronized View getView(ViewDescriptor.Name viewName, Clock clock) {
-    MutableView view = getMutableView(viewName);
-    return view == null ? null : view.toView(clock);
+  /** Returns a {@link ViewData} corresponding to the given {@link View.Name}. */
+  synchronized ViewData getView(View.Name viewName, Clock clock) {
+    MutableViewData view = getMutableViewData(viewName);
+    return view == null ? null : view.toViewData(clock);
   }
 
   @Nullable
-  private synchronized MutableView getMutableView(ViewDescriptor.Name viewName) {
-    ViewDescriptor viewDescriptor = registeredViews.get(viewName);
-    if (viewDescriptor == null) {
+  private synchronized MutableViewData getMutableViewData(View.Name viewName) {
+    View view = registeredViews.get(viewName);
+    if (view == null) {
       return null;
     }
-    Collection<MutableView> views =
-        mutableMap.get(viewDescriptor.getMeasure().getName());
-    for (MutableView view : views) {
-      if (view.getViewDescriptor().getViewDescriptorName().equals(viewName)) {
-        return view;
+    Collection<MutableViewData> views =
+        mutableMap.get(view.getMeasure().getName());
+    for (MutableViewData viewData : views) {
+      if (viewData.getView().getName().equals(viewName)) {
+        return viewData;
       }
     }
     throw new AssertionError("Internal error: Not recording stats for view: \"" + viewName
         + "\" registeredViews=" + registeredViews + ", mutableMap=" + mutableMap);
   }
 
-  /** Enable stats collection for the given {@link ViewDescriptor}. */
-  synchronized void registerView(ViewDescriptor viewDescriptor, Clock clock) {
-    ViewDescriptor existing = registeredViews.get(viewDescriptor.getViewDescriptorName());
+  /** Enable stats collection for the given {@link View}. */
+  synchronized void registerView(View view, Clock clock) {
+    View existing = registeredViews.get(view.getName());
     if (existing != null) {
-      if (existing.equals(viewDescriptor)) {
+      if (existing.equals(view)) {
         // Ignore views that are already registered.
         return;
       } else {
@@ -80,46 +83,80 @@ final class MeasureToViewMap {
             "A different view with the same name is already registered: " + existing);
       }
     }
-    registeredViews.put(viewDescriptor.getViewDescriptorName(), viewDescriptor);
-    MutableView mutableView =
-        viewDescriptor.match(
-            new CreateMutableDistributionViewFunction(clock),
-            new CreateMutableIntervalViewFunction());
+    registeredViews.put(view.getName(), view);
+    MutableViewData mutableViewData =
+        view.match(
+            new CreateMutableDistributionViewDataFunction(clock),
+            new CreateMutableIntervalViewDataFunction());
     mutableMap.put(
-        viewDescriptor.getMeasure().getName(), mutableView);
+        view.getMeasure().getName(), mutableViewData);
   }
 
   // Records stats with a set of tags.
-  synchronized void record(StatsContextImpl tags, MeasurementMap stats) {
-    for (MeasurementValue mv : stats) {
-      Collection<MutableView> views =
-          mutableMap.get(mv.getMeasurement().getName());
-      for (MutableView view : views) {
-        view.record(tags, mv.getValue());
+  synchronized void record(StatsContextImpl tags, MeasureMap stats) {
+    Iterator<Measurement> iterator = stats.iterator();
+    while (iterator.hasNext()) {
+      Measurement measurement = iterator.next();
+      Collection<MutableViewData> views = mutableMap.get(measurement.getMeasure().getName());
+      for (MutableViewData view : views) {
+        measurement.match(
+            new RecordDoubleValueFunc(tags, view), new RecordLongValueFunc(tags, view));
       }
     }
   }
 
-  private static final class CreateMutableDistributionViewFunction
-      implements Function<DistributionViewDescriptor, MutableView> {
+  private static final class CreateMutableDistributionViewDataFunction
+      implements Function<DistributionView, MutableViewData> {
     private final Clock clock;
 
-    CreateMutableDistributionViewFunction(Clock clock) {
+    CreateMutableDistributionViewDataFunction(Clock clock) {
       this.clock = clock;
     }
 
     @Override
-    public MutableView apply(DistributionViewDescriptor viewDescriptor) {
-      return MutableDistributionView.create(viewDescriptor, clock.now());
+    public MutableViewData apply(DistributionView view) {
+      return MutableDistributionViewData.create(view, clock.now());
     }
   }
 
-  private static final class CreateMutableIntervalViewFunction
-      implements Function<IntervalViewDescriptor, MutableView> {
+  private static final class CreateMutableIntervalViewDataFunction
+      implements Function<IntervalView, MutableViewData> {
     @Override
-    public MutableView apply(IntervalViewDescriptor viewDescriptor) {
+    public MutableViewData apply(IntervalView view) {
       // TODO(songya): Create Interval Aggregations from internal Distributions.
-      return MutableIntervalView.create(viewDescriptor);
+      return MutableIntervalViewData.create(view);
+    }
+  }
+
+  private static final class RecordDoubleValueFunc implements Function<MeasurementDouble, Void> {
+    @Override
+    public Void apply(MeasurementDouble arg) {
+      view.record(tags, arg.getValue());
+      return null;
+    }
+
+    private final StatsContextImpl tags;
+    private final MutableViewData view;
+
+    private RecordDoubleValueFunc(StatsContextImpl tags, MutableViewData view) {
+      this.tags = tags;
+      this.view = view;
+    }
+  }
+
+  private static final class RecordLongValueFunc implements Function<MeasurementLong, Void> {
+    @Override
+    public Void apply(MeasurementLong arg) {
+      view.record(tags, arg.getValue());
+      return null;
+    }
+
+    private final StatsContextImpl tags;
+    private final MutableViewData view;
+
+    private RecordLongValueFunc(StatsContextImpl tags, MutableViewData view) {
+      this.tags = tags;
+      this.view = view;
     }
   }
 }

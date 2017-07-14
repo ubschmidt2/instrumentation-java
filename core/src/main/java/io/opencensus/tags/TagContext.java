@@ -13,10 +13,12 @@
 
 package io.opencensus.tags;
 
-import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 
-import io.opencensus.internal.StringUtil;
-import io.opencensus.tags.TagKey.TagType;
+import io.opencensus.common.Scope;
+import io.opencensus.tags.TagKey.TagKeyBoolean;
+import io.opencensus.tags.TagKey.TagKeyLong;
+import io.opencensus.tags.TagKey.TagKeyString;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,18 +33,46 @@ import javax.annotation.concurrent.Immutable;
  */
 @Immutable
 public final class TagContext {
-  /** The maximum length for a string tag value. */
-  public static final int MAX_STRING_LENGTH = StringUtil.MAX_LENGTH;
+
+  /** The empty {@code TagContext}. */
+  public static final TagContext EMPTY = emptyBuilder().build();
 
   // The types of the TagKey and value must match for each entry.
-  private final Map<TagKey<?>, Object> tags;
+  private final Map<TagKey, Object> tags;
 
-  TagContext(Map<TagKey<?>, Object> tags) {
-    this.tags = Collections.unmodifiableMap(new HashMap<TagKey<?>, Object>(tags));
+  TagContext(Map<? extends TagKey, ?> tags) {
+    this.tags = Collections.unmodifiableMap(new HashMap<TagKey, Object>(tags));
   }
 
-  Map<TagKey<?>, Object> getTags() {
+  Map<TagKey, Object> getTags() {
     return tags;
+  }
+
+  /**
+   * Returns the current {@code TagContext}.
+   *
+   * @return the current {@code TagContext}.
+   */
+  public static TagContext getCurrentTags() {
+    return CurrentTagContextUtils.getCurrentTagContext();
+  }
+
+  /**
+   * Returns a new empty {@code Builder}.
+   *
+   * @return a new empty {@code Builder}.
+   */
+  public static Builder emptyBuilder() {
+    return new Builder();
+  }
+
+  /**
+   * Returns a new {@code Builder} created from the current {@code TagContext}.
+   *
+   * @return a new {@code Builder} created from the current {@code TagContext}.
+   */
+  public static Builder currentBuilder() {
+    return getCurrentTags().toBuilder();
   }
 
   /**
@@ -56,14 +86,14 @@ public final class TagContext {
 
   /** Builder for the {@link TagContext} class. */
   public static final class Builder {
-    private final Map<TagKey<?>, Object> tags;
+    private final Map<TagKey, Object> tags;
 
-    private Builder(Map<TagKey<?>, Object> tags) {
-      this.tags = new HashMap<TagKey<?>, Object>(tags);
+    private Builder(Map<TagKey, Object> tags) {
+      this.tags = new HashMap<TagKey, Object>(tags);
     }
 
     Builder() {
-      this.tags = new HashMap<TagKey<?>, Object>();
+      this.tags = new HashMap<TagKey, Object>();
     }
 
     /**
@@ -72,17 +102,10 @@ public final class TagContext {
      * @param key the {@code TagKey} which will be set.
      * @param value the value to set for the given key.
      * @return this
-     * @throws IllegalArgumentException if either argument is null, the key is the wrong type, or
-     *     the value contains unprintable characters or is longer than {@link
-     *     TagContext#MAX_STRING_LENGTH}.
+     * @throws IllegalArgumentException if either argument is null.
      */
-    public Builder set(TagKey<String> key, String value) {
-      checkArgument(key.getTagType() == TagType.TAG_STRING);
-
-      // TODO(sebright): Consider adding a TagValue class to avoid validating the String every time
-      // it is set.
-      checkArgument(StringUtil.isValid(value));
-      return setInternal(key, value);
+    public Builder set(TagKeyString key, TagValueString value) {
+      return setInternal(key, checkNotNull(value, "value"));
     }
 
     /**
@@ -91,11 +114,10 @@ public final class TagContext {
      * @param key the {@code TagKey} which will be set.
      * @param value the value to set for the given key.
      * @return this
-     * @throws IllegalArgumentException if the key is null or the key is the wrong type.
+     * @throws IllegalArgumentException if the key is null.
      */
     // TODO(sebright): Make this public once we support types other than String.
-    Builder set(TagKey<Long> key, long value) {
-      checkArgument(key.getTagType() == TagType.TAG_LONG);
+    Builder set(TagKeyLong key, long value) {
       return setInternal(key, value);
     }
 
@@ -105,16 +127,15 @@ public final class TagContext {
      * @param key the {@code TagKey} which will be set.
      * @param value the value to set for the given key.
      * @return this
-     * @throws IllegalArgumentException if the key is null or the key is the wrong type.
+     * @throws IllegalArgumentException if the key is null.
      */
     // TODO(sebright): Make this public once we support types other than String.
-    Builder set(TagKey<Boolean> key, boolean value) {
-      checkArgument(key.getTagType() == TagType.TAG_BOOLEAN);
+    Builder set(TagKeyBoolean key, boolean value) {
       return setInternal(key, value);
     }
 
-    private <TagValueT> Builder setInternal(TagKey<TagValueT> key, TagValueT value) {
-      tags.put(key, value);
+    private Builder setInternal(TagKey key, Object value) {
+      tags.put(checkNotNull(key), value);
       return this;
     }
 
@@ -124,7 +145,7 @@ public final class TagContext {
      * @param key the {@code TagKey} which will be cleared.
      * @return this
      */
-    public Builder clear(TagKey<?> key) {
+    public Builder clear(TagKey key) {
       tags.remove(key);
       return this;
     }
@@ -135,7 +156,19 @@ public final class TagContext {
      * @return a {@code TagContext} with the same tags as this builder.
      */
     public TagContext build() {
-      return new TagContext(new HashMap<TagKey<?>, Object>(tags));
+      return new TagContext(tags);
+    }
+
+    /**
+     * Enters the scope of code where the {@link TagContext} created from this builder is in the
+     * current context and returns an object that represents that scope. The scope is exited when
+     * the returned object is closed.
+     *
+     * @return an object that defines a scope where the {@code TagContext} created from this builder
+     *     is set to the current context.
+     */
+    public Scope buildScoped() {
+      return CurrentTagContextUtils.withTagContext(build());
     }
   }
 }

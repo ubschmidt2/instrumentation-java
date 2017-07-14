@@ -14,9 +14,9 @@
 package io.opencensus.trace.propagation;
 
 import io.opencensus.trace.SpanContext;
-import io.opencensus.trace.base.SpanId;
-import io.opencensus.trace.base.TraceId;
-import io.opencensus.trace.base.TraceOptions;
+import io.opencensus.trace.SpanId;
+import io.opencensus.trace.TraceId;
+import io.opencensus.trace.TraceOptions;
 import java.text.ParseException;
 import java.util.concurrent.TimeUnit;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -38,8 +38,7 @@ public class BinaryPropagationImplBenchmark {
   private static final TraceOptions traceOptions = TraceOptions.fromBytes(traceOptionsBytes);
   private static final SpanContext spanContext = SpanContext.create(traceId, spanId, traceOptions);
   private static final BinaryFormat BINARY_PROPAGATION = new BinaryFormatImpl();
-  private static final byte[] spanContextBinary =
-      BINARY_PROPAGATION.toBinaryValue(spanContext);
+  private static final byte[] spanContextBinary = BINARY_PROPAGATION.toBinaryValue(spanContext);
 
   /**
    * This benchmark attempts to measure performance of {@link
@@ -72,7 +71,6 @@ public class BinaryPropagationImplBenchmark {
   @BenchmarkMode(Mode.SampleTime)
   @OutputTimeUnit(TimeUnit.NANOSECONDS)
   public SpanContext toFromBinarySpanContext() throws ParseException {
-    return BINARY_PROPAGATION.fromBinaryValue(
-        BINARY_PROPAGATION.toBinaryValue(spanContext));
+    return BINARY_PROPAGATION.fromBinaryValue(BINARY_PROPAGATION.toBinaryValue(spanContext));
   }
 }
