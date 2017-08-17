@@ -131,6 +131,7 @@ shadowJar {
 
 jar.finalizedBy shadowJar
 
+// Shrink the agent JAR by removing unreferenced classes and methods.
 task proguard(type: proguard.gradle.ProGuardTask) {
   def tmpJar = "${buildDir}/libs/tmp.jar"
 
@@ -157,7 +158,7 @@ task proguard(type: proguard.gradle.ProGuardTask) {
   keep """public class io.opencensus.contrib.agent.AgentMain {
             public static void premain(java.lang.String, java.lang.instrument.Instrumentation);
           }"""
-  keep """class io.opencensus.contrib.agent.* {
+  keep """class io.opencensus.contrib.agent.instrumentation.** {
             private *;
           }"""
   keep """class io.opencensus.contrib.agent.deps.bytebuddy.asm.** {
