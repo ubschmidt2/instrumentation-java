@@ -19,6 +19,7 @@ package io.opencensus.contrib.agent.instrumentation;
 import static com.google.common.truth.Truth.assertThat;
 
 import io.grpc.Context;
+import io.opencensus.contrib.agent.runner.FailFastRunner;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -28,7 +29,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.junit.runners.JUnit4;
 
 /**
  * Integration tests for {@link ExecutorInstrumentation}.
@@ -36,7 +36,7 @@ import org.junit.runners.JUnit4;
  * <p>The integration tests are executed in a separate JVM that has the OpenCensus agent enabled
  * via the {@code -javaagent} command line option.
  */
-@RunWith(JUnit4.class)
+@RunWith(FailFastRunner.class)
 @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
 public class ExecutorInstrumentationIT {
 
